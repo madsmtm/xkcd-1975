@@ -5,7 +5,7 @@ edition = "2021"
 description = "XKCD 1975 reimplemented using macOS menus"
 readme = "README.md"
 # Same licensing as XKCD in general
-license = "CC-BY-2.5"
+license = "CC-BY-NC-2.5"
 repository = "https://github.com/madsmtm/xkcd-1975"
 
 [dependencies]
