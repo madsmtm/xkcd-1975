@@ -1,5 +1,6 @@
-use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde_derive::{Deserialize, Serialize};
 
 /// The source data, extracted from <https://xkcd.com/s/f9dfe4.js>.
 pub const DATA_JSON: &str = include_str!("data.json");
@@ -35,21 +36,20 @@ pub struct State {
     tags: HashMap<Id, String>,
 }
 
-impl State {
-    #[allow(unused)]
-    pub fn update(&mut self, action: &Action) {
-        // Explicitly set tags before unsetting; this is the same order as in the original source
-        self.tags.extend(action.set_tags.clone());
-        self.tags.retain(|k, _| action.unset_tags.contains(k));
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct Action {
     #[serde(rename = "setTags")]
     set_tags: HashMap<Id, String>,
     #[serde(rename = "unsetTags")]
     unset_tags: Vec<Id>,
+}
+
+impl Action {
+    pub fn update_state(&self, state: &mut State) {
+        // Explicitly set tags before unsetting; this is the same order as in the original source
+        state.tags.extend(self.set_tags.clone());
+        state.tags.retain(|k, _| self.unset_tags.contains(k));
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
@@ -62,7 +62,7 @@ struct MenuItem {
     display: Conditional,
     /// Whether the menu item should be clickable / not disabled.
     active: Conditional,
-    /// The action that should be done when the user hovers and/or clicks on the menu item.
+    /// What should be done when the user hovers and/or clicks on the menu item.
     reaction: Reaction,
 }
 
@@ -77,6 +77,19 @@ enum Conditional {
     TLOr { contents: Vec<Conditional> },
 }
 
+impl Conditional {
+    pub fn evaluate(&self, state: &State) -> bool {
+        match self {
+            Self::Always => true,
+            Self::TagSet { contents } => state.tags.contains_key(contents),
+            Self::TagUnset { contents } => !state.tags.contains_key(contents),
+            Self::TLNot { contents } => !contents.evaluate(state),
+            Self::TLAnd { contents } => contents.iter().all(|item| item.evaluate(state)),
+            Self::TLOr { contents } => contents.iter().any(|item| item.evaluate(state)),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(tag = "tag")]
 enum Reaction {
@@ -88,10 +101,10 @@ enum Reaction {
         #[serde(rename = "subIdPostfix")]
         sub_id_postfix: Option<Id>,
     },
-    Action {
+    #[serde(rename = "Action")]
+    ClickAction {
         #[serde(rename = "onAction")]
         on_action: Action,
-        #[serde(rename = "act")]
         act: Option<ClickAction>,
     },
 }
