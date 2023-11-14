@@ -10,7 +10,7 @@ use icrate::AppKit::{
     NSMenuDelegate, NSMenuItem, NSWorkspace,
 };
 use icrate::Foundation::{
-    MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSProcessInfo, NSString, NSURL,
+    MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL,
 };
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::{Allocated, Id};
@@ -18,6 +18,8 @@ use objc2::runtime::ProtocolObject;
 use objc2::{declare_class, extern_methods, msg_send, mutability, sel, ClassType};
 
 use xkcd_1975::{Action, ClickAction, Data, Graph, MenuId, Reaction, State};
+
+const NAME: &str = "XKCD 1975";
 
 pub struct DelegateState {
     root_id: MenuId,
@@ -76,6 +78,9 @@ declare_class!(
             menu.setAutoenablesItems(false);
             self.menuNeedsUpdate(&menu);
             app.setMainMenu(Some(&menu));
+
+            // Activate manually, since we're not being launched as an application bundle
+            app.activateIgnoringOtherApps(true);
         }
 
         // Required to prevent a warning regarding saved application state
@@ -240,7 +245,7 @@ fn get_system_menu(app: &NSApplication) -> Id<NSMenuItem> {
     unsafe {
         let mtm = MainThreadMarker::new().unwrap();
 
-        let name = NSProcessInfo::processInfo().processName();
+        let name = ns_string!(NAME); // NSProcessInfo::processInfo().processName();
         let menu = NSMenu::initWithTitle(mtm.alloc(), &name);
         let item = NSMenuItem::initWithTitle_action_keyEquivalent(
             mtm.alloc(),
