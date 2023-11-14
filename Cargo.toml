@@ -1,8 +1,12 @@
 [package]
 name = "xkcd_1975"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
-publish = false
+description = "XKCD 1975 reimplemented using macOS menus"
+readme = "README.md"
+# Same licensing as XKCD in general
+license = "CC-BY-2.5"
+repository = "https://github.com/madsmtm/xkcd_1975"
 
 [dependencies]
 serde_json = "1.0"
