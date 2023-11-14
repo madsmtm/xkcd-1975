@@ -8,3 +8,15 @@ publish = false
 serde_json = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
+objc2 = "0.4.1"
+
+[dependencies.icrate]
+version = "0.0.4"
+features = [
+    "AppKit",
+    "AppKit_NSMenu",
+    "AppKit_NSMenuItem",
+    "AppKit_NSApplication",
+    "Foundation",
+    "Foundation_NSString",
+]

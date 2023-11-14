@@ -2,23 +2,26 @@ use std::collections::HashMap;
 
 use serde_derive::{Deserialize, Serialize};
 
-/// The source data, extracted from <https://xkcd.com/s/f9dfe4.js>.
-pub const DATA_JSON: &str = include_str!("data.json");
-
 /// An identifier for menus in the graph.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
 #[serde(transparent)]
-struct Id(String);
+pub struct Id(String);
+
+pub type Graph = HashMap<Id, Menu>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct Data {
     pub root: Root,
-    graph: HashMap<Id, Menu>,
+    pub graph: Graph,
 }
 
 impl Data {
-    pub fn load() -> serde_json::Result<Self> {
-        serde_json::from_str(DATA_JSON)
+    /// The source data, extracted from <https://xkcd.com/s/f9dfe4.js>.
+    const JSON: &str = include_str!("data.json");
+
+    /// Load the data from source.
+    pub fn load() -> Self {
+        serde_json::from_str(Self::JSON).unwrap()
     }
 }
 
@@ -27,7 +30,7 @@ pub struct Root {
     #[serde(rename = "State")]
     pub state: State,
     #[serde(rename = "Menu")]
-    menu: Menu,
+    pub menu: Menu,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
@@ -53,22 +56,22 @@ impl Action {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
-struct MenuItem {
+pub struct MenuItem {
     /// Unused.
     icon: Option<String>,
     /// The string shown on the menu item.
-    label: String,
+    pub label: String,
     /// Whether the menu item should be shown.
-    display: Conditional,
+    pub display: Conditional,
     /// Whether the menu item should be clickable / not disabled.
-    active: Conditional,
+    pub active: Conditional,
     /// What should be done when the user hovers and/or clicks on the menu item.
-    reaction: Reaction,
+    pub reaction: Reaction,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(tag = "tag")]
-enum Conditional {
+pub enum Conditional {
     Always,
     TagSet { contents: Id },
     TagUnset { contents: Id },
@@ -92,14 +95,12 @@ impl Conditional {
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(tag = "tag")]
-enum Reaction {
+pub enum Reaction {
     SubMenu {
         #[serde(rename = "onAction")]
         on_action: Action,
-        #[serde(rename = "subMenu")]
-        sub_menu: Id,
-        #[serde(rename = "subIdPostfix")]
-        sub_id_postfix: Option<Id>,
+        #[serde(flatten)]
+        submenu: SubMenu,
     },
     #[serde(rename = "Action")]
     ClickAction {
@@ -110,8 +111,31 @@ enum Reaction {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+pub struct SubMenu {
+    #[serde(rename = "subMenu")]
+    sub_menu: Id,
+    #[serde(rename = "subIdPostfix")]
+    sub_id_postfix: Option<Id>,
+}
+
+impl SubMenu {
+    pub fn id(&self, state: &State) -> Id {
+        if let Some(postfix_id) = &self.sub_id_postfix {
+            if let Some(postfix) = state.tags.get(postfix_id) {
+                Id(format!("{}{}", self.sub_menu.0, postfix))
+            } else {
+                // Fall back to no postfix if no tag with that ID was set.
+                self.sub_menu.clone()
+            }
+        } else {
+            self.sub_menu.clone()
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(tag = "tag")]
-enum ClickAction {
+pub enum ClickAction {
     ColapseMenu,
     Nav {
         url: String,
@@ -127,11 +151,11 @@ enum ClickAction {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
-struct Menu {
-    id: Id,
+pub struct Menu {
+    pub id: Id,
     #[serde(rename = "onLeave")]
-    on_leave: Action,
-    entries: Vec<MenuItem>,
+    pub on_leave: Action,
+    pub entries: Vec<MenuItem>,
 }
 
 #[cfg(test)]
@@ -140,9 +164,9 @@ mod tests {
 
     #[test]
     fn everything_is_parsed() {
-        let expected: serde_json::Value = serde_json::from_str(DATA_JSON).unwrap();
+        let expected: serde_json::Value = serde_json::from_str(Data::JSON).unwrap();
 
-        let parsed = Data::load().unwrap();
+        let parsed = Data::load();
         let after_roundtrip = serde_json::to_value(parsed).unwrap();
 
         assert_eq!(expected, after_roundtrip);
@@ -150,7 +174,7 @@ mod tests {
 
     #[test]
     fn root_menu_is_same_as_in_graph() {
-        let data = Data::load().unwrap();
+        let data = Data::load();
 
         assert_eq!(data.root.menu, data.graph[&data.root.menu.id]);
     }
