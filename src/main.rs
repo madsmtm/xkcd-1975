@@ -1,13 +1,9 @@
-use serde_derive::Deserialize;
+use std::io;
 
-#[derive(Debug, Deserialize)]
-struct Data {
-    root: Root,
-    graph: Graph,
-}
+use xkcd_1975::Data;
 
-fn main() -> std::io::Result<()> {
-    let data: Data = serde_json::from_str(&std::fs::read_to_string("./data.json")?)?;
+fn main() -> io::Result<()> {
+    let _: Data = Data::load()?;
     // println!("{data:?}");
     Ok(())
 }

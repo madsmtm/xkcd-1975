@@ -1,5 +1,5 @@
 [package]
-name = "xkcd-1975"
+name = "xkcd_1975"
 version = "0.0.0"
 edition = "2021"
 publish = false
