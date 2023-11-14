@@ -8,15 +8,17 @@
 
 /* Begin PBXBuildFile section */
 		EC3D29E42AFAA60500390533 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3D29E32AFAA60500390533 /* main.swift */; };
-		ECDA90582AFA82A100870483 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECDA90572AFA82A100870483 /* AppDelegate.swift */; };
+		EC3D29E62AFAACD100390533 /* Framework.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3D29E52AFAACD100390533 /* Framework.swift */; };
+		EC3D29E82AFAC1AA00390533 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3D29E72AFAC1AA00390533 /* Game.swift */; };
 		ECDA905C2AFA82A200870483 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ECDA905B2AFA82A200870483 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		EC3D29E22AFA990400390533 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		EC3D29E32AFAA60500390533 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		EC3D29E52AFAACD100390533 /* Framework.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Framework.swift; sourceTree = "<group>"; };
+		EC3D29E72AFAC1AA00390533 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
 		ECDA90542AFA82A100870483 /* XKCD 1975.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "XKCD 1975.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		ECDA90572AFA82A100870483 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		ECDA905B2AFA82A200870483 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ECDA90602AFA82A200870483 /* XKCD 1975.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "XKCD 1975.entitlements"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -35,9 +37,10 @@
 		ECDA904B2AFA82A100870483 = {
 			isa = PBXGroup;
 			children = (
+				EC3D29E72AFAC1AA00390533 /* Game.swift */,
+				EC3D29E52AFAACD100390533 /* Framework.swift */,
 				EC3D29E32AFAA60500390533 /* main.swift */,
 				EC3D29E22AFA990400390533 /* README.md */,
-				ECDA90572AFA82A100870483 /* AppDelegate.swift */,
 				ECDA905B2AFA82A200870483 /* Assets.xcassets */,
 				ECDA90602AFA82A200870483 /* XKCD 1975.entitlements */,
 				ECDA90552AFA82A100870483 /* Products */,
@@ -120,8 +123,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EC3D29E82AFAC1AA00390533 /* Game.swift in Sources */,
+				EC3D29E62AFAACD100390533 /* Framework.swift in Sources */,
 				EC3D29E42AFAA60500390533 /* main.swift in Sources */,
-				ECDA90582AFA82A100870483 /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
