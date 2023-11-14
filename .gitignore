@@ -1,2 +1,5 @@
 # XCode user settings
 xcuserdata/
+
+# Rust
+/target

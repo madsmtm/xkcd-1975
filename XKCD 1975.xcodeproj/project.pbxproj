@@ -10,6 +10,7 @@
 		EC3D29E42AFAA60500390533 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3D29E32AFAA60500390533 /* main.swift */; };
 		EC3D29E62AFAACD100390533 /* Framework.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3D29E52AFAACD100390533 /* Framework.swift */; };
 		EC3D29E82AFAC1AA00390533 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3D29E72AFAC1AA00390533 /* Game.swift */; };
+		ECA25B522B03C0B5005A2F9E /* data.json in Resources */ = {isa = PBXBuildFile; fileRef = ECA25B512B03C0B5005A2F9E /* data.json */; };
 		ECDA905C2AFA82A200870483 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ECDA905B2AFA82A200870483 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -18,6 +19,7 @@
 		EC3D29E32AFAA60500390533 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		EC3D29E52AFAACD100390533 /* Framework.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Framework.swift; sourceTree = "<group>"; };
 		EC3D29E72AFAC1AA00390533 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
+		ECA25B512B03C0B5005A2F9E /* data.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = data.json; sourceTree = "<group>"; };
 		ECDA90542AFA82A100870483 /* XKCD 1975.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "XKCD 1975.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ECDA905B2AFA82A200870483 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ECDA90602AFA82A200870483 /* XKCD 1975.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "XKCD 1975.entitlements"; sourceTree = "<group>"; };
@@ -37,6 +39,7 @@
 		ECDA904B2AFA82A100870483 = {
 			isa = PBXGroup;
 			children = (
+				ECA25B512B03C0B5005A2F9E /* data.json */,
 				EC3D29E72AFAC1AA00390533 /* Game.swift */,
 				EC3D29E52AFAACD100390533 /* Framework.swift */,
 				EC3D29E32AFAA60500390533 /* main.swift */,
@@ -113,6 +116,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ECDA905C2AFA82A200870483 /* Assets.xcassets in Resources */,
+				ECA25B522B03C0B5005A2F9E /* data.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
