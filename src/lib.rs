@@ -164,6 +164,7 @@ pub struct Menu {
     pub entries: Vec<MenuItem>,
 }
 
+/// If any of these tests fail, then we may have to rewrite things.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,9 +180,52 @@ mod tests {
     }
 
     #[test]
+    fn no_icons() {
+        let data = Data::load();
+
+        assert!(data
+            .graph
+            .values()
+            .flat_map(|menu| &menu.entries)
+            .all(|entry| entry.icon.is_none()));
+    }
+
+    #[test]
     fn root_menu_is_same_as_in_graph() {
         let data = Data::load();
 
         assert_eq!(data.root.menu, data.graph[&data.root.menu.id]);
+    }
+
+    #[test]
+    fn root_menu_has_no_on_leave() {
+        let data = Data::load();
+
+        assert_eq!(data.root.menu.on_leave, Action::default());
+    }
+
+    #[test]
+    fn root_menu_entries_has_no_active() {
+        let data = Data::load();
+
+        assert!(data
+            .root
+            .menu
+            .entries
+            .iter()
+            .all(|entry| entry.active == Conditional::Always));
+    }
+
+    #[test]
+    fn root_menu_entries_is_submenu_and_has_no_hover() {
+        let data = Data::load();
+
+        assert!(data.root.menu.entries.iter().all(|entry| matches!(
+            &entry.reaction,
+            Reaction::SubMenu {
+                on_hover,
+                ..
+            } if on_hover == &Action::default()
+        )));
     }
 }

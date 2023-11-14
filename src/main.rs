@@ -17,12 +17,12 @@ use objc2::rc::{Allocated, Id};
 use objc2::runtime::ProtocolObject;
 use objc2::{declare_class, extern_methods, msg_send, mutability, sel, ClassType};
 
-use xkcd_1975::{Action, ClickAction, Data, Graph, MenuId, Reaction, State};
+use xkcd_1975::{Action, ClickAction, Data, Graph, Menu, MenuId, Reaction, State};
 
 const NAME: &str = "XKCD 1975";
 
 pub struct DelegateState {
-    root_id: MenuId,
+    root: Menu,
     state: RefCell<State>,
     graph: Graph,
 }
@@ -49,7 +49,7 @@ declare_class!(
                 Ivar::write(
                     &mut this.state,
                     Box::new(DelegateState {
-                        root_id: data.root.menu.id,
+                        root: data.root.menu,
                         state: RefCell::new(data.root.state),
                         graph: data.graph,
                     }),
@@ -70,7 +70,7 @@ declare_class!(
             let menu = CustomMenu::new(
                 mtm,
                 MenuState {
-                    id: self.state.root_id.clone(),
+                    id: self.state.root.id.clone(),
                     on_hover: Action::default(),
                 },
             );
