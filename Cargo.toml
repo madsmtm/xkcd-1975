@@ -17,6 +17,12 @@ features = [
     "AppKit_NSMenu",
     "AppKit_NSMenuItem",
     "AppKit_NSApplication",
+    "AppKit_NSWorkspace",
     "Foundation",
     "Foundation_NSString",
+    "Foundation_NSArray",
+    "Foundation_NSNotification",
+    "Foundation_NSThread",
+    "Foundation_NSURL",
+    "Foundation_NSProcessInfo",
 ]

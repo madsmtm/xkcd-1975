@@ -5,9 +5,9 @@ use serde_derive::{Deserialize, Serialize};
 /// An identifier for menus in the graph.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
 #[serde(transparent)]
-pub struct Id(String);
+pub struct MenuId(String);
 
-pub type Graph = HashMap<Id, Menu>;
+pub type Graph = HashMap<MenuId, Menu>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct Data {
@@ -36,23 +36,29 @@ pub struct Root {
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct State {
     #[serde(rename = "Tags")]
-    tags: HashMap<Id, String>,
+    tags: HashMap<MenuId, String>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+impl State {
+    pub fn update(&mut self, action: &Action) {
+        // Explicitly set tags before unsetting; this is the same order as in the original source
+        self.tags.extend(action.set_tags.clone());
+        self.tags.retain(|k, _| !action.unset_tags.contains(k));
+        if !action.set_tags.is_empty() || !action.unset_tags.is_empty() {
+            eprintln!(
+                "Updated tags: {:#?}",
+                self.tags.keys().map(|tag| &tag.0).collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize, Default)]
 pub struct Action {
     #[serde(rename = "setTags")]
-    set_tags: HashMap<Id, String>,
+    set_tags: HashMap<MenuId, String>,
     #[serde(rename = "unsetTags")]
-    unset_tags: Vec<Id>,
-}
-
-impl Action {
-    pub fn update_state(&self, state: &mut State) {
-        // Explicitly set tags before unsetting; this is the same order as in the original source
-        state.tags.extend(self.set_tags.clone());
-        state.tags.retain(|k, _| self.unset_tags.contains(k));
-    }
+    unset_tags: Vec<MenuId>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
@@ -73,8 +79,8 @@ pub struct MenuItem {
 #[serde(tag = "tag")]
 pub enum Conditional {
     Always,
-    TagSet { contents: Id },
-    TagUnset { contents: Id },
+    TagSet { contents: MenuId },
+    TagUnset { contents: MenuId },
     TLNot { contents: Box<Conditional> },
     TLAnd { contents: Vec<Conditional> },
     TLOr { contents: Vec<Conditional> },
@@ -98,7 +104,7 @@ impl Conditional {
 pub enum Reaction {
     SubMenu {
         #[serde(rename = "onAction")]
-        on_action: Action,
+        on_hover: Action,
         #[serde(flatten)]
         submenu: SubMenu,
     },
@@ -113,16 +119,16 @@ pub enum Reaction {
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct SubMenu {
     #[serde(rename = "subMenu")]
-    sub_menu: Id,
+    sub_menu: MenuId,
     #[serde(rename = "subIdPostfix")]
-    sub_id_postfix: Option<Id>,
+    sub_id_postfix: Option<MenuId>,
 }
 
 impl SubMenu {
-    pub fn id(&self, state: &State) -> Id {
+    pub fn id(&self, state: &State) -> MenuId {
         if let Some(postfix_id) = &self.sub_id_postfix {
             if let Some(postfix) = state.tags.get(postfix_id) {
-                Id(format!("{}{}", self.sub_menu.0, postfix))
+                MenuId(format!("{}{}", self.sub_menu.0, postfix))
             } else {
                 // Fall back to no postfix if no tag with that ID was set.
                 self.sub_menu.clone()
@@ -152,7 +158,7 @@ pub enum ClickAction {
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct Menu {
-    pub id: Id,
+    pub id: MenuId,
     #[serde(rename = "onLeave")]
     pub on_leave: Action,
     pub entries: Vec<MenuItem>,
