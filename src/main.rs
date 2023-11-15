@@ -17,7 +17,7 @@ use objc2::rc::{Allocated, Id};
 use objc2::runtime::ProtocolObject;
 use objc2::{declare_class, extern_methods, msg_send, mutability, sel, ClassType};
 
-use xkcd_1975::{Action, ClickAction, Conditional, Data, Graph, MenuId, Reaction, State};
+use xkcd_1975::{Action, ClickAction, Conditional, Data, Graph, Reaction, State, SubMenu};
 
 const NAME: &str = "XKCD 1975";
 
@@ -55,7 +55,7 @@ declare_class!(
                     .map(|entry| {
                         let state = match &entry.reaction {
                             Reaction::SubMenu { submenu, on_hover } => MenuState {
-                                id: submenu.id(&data.root.state),
+                                submenu: submenu.clone(),
                                 on_hover: on_hover.clone(),
                             },
                             _ => unreachable!(),
@@ -90,6 +90,7 @@ declare_class!(
 
             for (_, menu) in &self.state.main_menus {
                 self.menuNeedsUpdate(&menu);
+
                 let system_item = NSMenuItem::initWithTitle_action_keyEquivalent(
                     mtm.alloc(),
                     ns_string!(NAME),
@@ -116,7 +117,8 @@ declare_class!(
     unsafe impl NSMenuDelegate for Delegate {
         #[method(menuWillOpen:)]
         unsafe fn _menuWillOpen(&self, menu: &NSMenu) {
-            let MenuState { id, on_hover } = get_menu_state(menu);
+            let MenuState { submenu, on_hover } = get_menu_state(&menu);
+            let id = &submenu.id(&self.state.state.borrow());
             let data = &self.state.graph[id];
 
             let mut state = self.state.state.borrow_mut();
@@ -127,7 +129,7 @@ declare_class!(
 
             // Hacky code for the main menu having the system menu
             if menu.numberOfItems() as usize != data.entries.len() {
-                assert_eq!(menu.numberOfItems() as usize - 1, data.entries.len());
+                assert_eq!(menu.numberOfItems() as usize, data.entries.len() + 1);
                 let _ = iter.next().unwrap();
             }
 
@@ -139,7 +141,8 @@ declare_class!(
 
         #[method(menuDidClose:)]
         fn _menuDidClose(&self, menu: &NSMenu) {
-            let MenuState { id, .. } = get_menu_state(menu);
+            let MenuState { submenu, .. } = get_menu_state(&menu);
+            let id = &submenu.id(&self.state.state.borrow());
             let data = &self.state.graph[id];
 
             self.state.state.borrow_mut().update(&data.on_leave);
@@ -151,8 +154,8 @@ declare_class!(
                 return;
             }
             let mtm = MainThreadMarker::new().unwrap();
-            let MenuState { id, .. } = get_menu_state(menu);
-            dbg!(id);
+            let MenuState { submenu, .. } = get_menu_state(&menu);
+            let id = &submenu.id(&self.state.state.borrow());
             let data = &self.state.graph[id];
 
             for entry in &data.entries {
@@ -170,7 +173,7 @@ declare_class!(
                         let menu = CustomMenu::new(
                             mtm,
                             MenuState {
-                                id: submenu.id(&self.state.state.borrow()),
+                                submenu: submenu.clone(),
                                 on_hover: on_hover.clone(),
                             },
                         );
@@ -193,7 +196,8 @@ declare_class!(
         #[method(click:)]
         unsafe fn click(&self, item: &NSMenuItem) {
             let menu = item.menu().unwrap();
-            let MenuState { id, .. } = get_menu_state(&menu);
+            let MenuState { submenu, .. } = get_menu_state(&menu);
+            let id = &submenu.id(&self.state.state.borrow());
 
             match &self.state.graph[id].entries[menu.indexOfItem(item) as usize].reaction {
                 Reaction::SubMenu { .. } => {
@@ -203,13 +207,14 @@ declare_class!(
                     // Update state before doing the action
                     self.state.state.borrow_mut().update(&on_action);
 
+                    // Update the main menu.
+                    // TODO: Find a better way to do this.
+                    self.update_main_menu();
+
                     if let Some(act) = act {
                         match act {
                             ClickAction::ColapseMenu => {
                                 // Do nothing, as the menu will close automatically after an item was clicked
-
-                                // Except we _do_ need to update the main menu...
-                                self.update_main_menu();
                             }
                             ClickAction::Nav { url } | ClickAction::Download { url, .. } => unsafe {
                                 let url = NSURL::initWithString(
@@ -275,7 +280,7 @@ extern_methods!(
 );
 
 pub struct MenuState {
-    id: MenuId,
+    submenu: SubMenu,
     on_hover: Action,
 }
 
