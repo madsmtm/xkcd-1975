@@ -1,5 +1,7 @@
 [XKCD 1975](https://xkcd.com/1975/), reimplemented using macOS menus.
 
+This is mostly done as a small project to see how well `objc2`/`icrate` fares.
+
 
 # Acknowledgements
 
