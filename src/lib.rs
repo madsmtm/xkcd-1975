@@ -17,7 +17,7 @@ pub struct Data {
 
 impl Data {
     /// The source data, extracted from <https://xkcd.com/s/f9dfe4.js>.
-    const JSON: &str = include_str!("data.json");
+    const JSON: &'static str = include_str!("data.json");
 
     /// Load the data from source.
     pub fn load() -> Self {

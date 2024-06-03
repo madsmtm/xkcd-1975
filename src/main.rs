@@ -3,36 +3,29 @@
 use std::cell::RefCell;
 use std::ptr::NonNull;
 
-use icrate::ns_string;
-use icrate::AppKit::{
-    NSApp, NSApplication, NSApplicationActivationPolicyRegular, NSApplicationDelegate,
-    NSApplicationMain, NSEventModifierFlagCommand, NSEventModifierFlagOption, NSMenu,
-    NSMenuDelegate, NSMenuItem, NSWorkspace,
-};
-use icrate::Foundation::{
-    MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL,
-};
-use objc2::declare::{Ivar, IvarDrop};
-use objc2::rc::{Allocated, Id};
+use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{declare_class, extern_methods, msg_send, mutability, sel, ClassType};
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSApplicationMain,
+    NSEventModifierFlags, NSMenu, NSMenuDelegate, NSMenuItem, NSWorkspace,
+};
+use objc2_foundation::{
+    ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL,
+};
 
 use xkcd_1975::{Action, ClickAction, Conditional, Data, Graph, Reaction, State, SubMenu};
 
 const NAME: &str = "XKCD 1975";
 
 pub struct DelegateState {
-    main_menus: Vec<(Conditional, Id<CustomMenu>)>,
+    main_menus: Vec<(Conditional, Retained<CustomMenu>)>,
     state: RefCell<State>,
     graph: Graph,
 }
 
 declare_class!(
-    struct Delegate {
-        state: IvarDrop<Box<DelegateState>, "_state">,
-    }
-
-    mod ivars;
+    struct Delegate;
 
     unsafe impl ClassType for Delegate {
         type Super = NSObject;
@@ -40,44 +33,8 @@ declare_class!(
         const NAME: &'static str = "Delegate";
     }
 
-    unsafe impl Delegate {
-        #[method(init)]
-        fn init(this: &Self) -> Option<&mut Self> {
-            let mtm = MainThreadMarker::new().unwrap();
-            let this: Option<&mut Self> = unsafe { msg_send![super(this), init] };
-            this.map(|this| {
-                let data = Data::load();
-                let main_menus = data
-                    .root
-                    .menu
-                    .entries
-                    .into_iter()
-                    .map(|entry| {
-                        let state = match &entry.reaction {
-                            Reaction::SubMenu { submenu, on_hover } => MenuState {
-                                submenu: submenu.clone(),
-                                on_hover: on_hover.clone(),
-                            },
-                            _ => unreachable!(),
-                        };
-                        let menu = CustomMenu::new(mtm, state);
-                        unsafe { menu.setAutoenablesItems(false) };
-                        unsafe { menu.setDelegate(Some(ProtocolObject::from_ref(this))) };
-
-                        (entry.display, menu)
-                    })
-                    .collect();
-                Ivar::write(
-                    &mut this.state,
-                    Box::new(DelegateState {
-                        main_menus,
-                        state: RefCell::new(data.root.state),
-                        graph: data.graph,
-                    }),
-                );
-                this
-            })
-        }
+    impl DeclaredClass for Delegate {
+        type Ivars = DelegateState;
     }
 
     unsafe impl NSObjectProtocol for Delegate {}
@@ -85,10 +42,10 @@ declare_class!(
     unsafe impl NSApplicationDelegate for Delegate {
         #[method(applicationDidFinishLaunching:)]
         unsafe fn applicationDidFinishLaunching(&self, _: &NSNotification) {
-            let mtm = MainThreadMarker::new().unwrap();
-            let app = unsafe { NSApp.unwrap() };
+            let mtm = MainThreadMarker::from(self);
+            let app = NSApplication::sharedApplication(mtm);
 
-            for (_, menu) in &self.state.main_menus {
+            for (_, menu) in &self.ivars().main_menus {
                 self.menuNeedsUpdate(&menu);
 
                 let system_item = NSMenuItem::initWithTitle_action_keyEquivalent(
@@ -103,6 +60,7 @@ declare_class!(
             self.update_main_menu();
 
             // Activate manually, since we're not being launched as an application bundle
+            #[allow(deprecated)]
             app.activateIgnoringOtherApps(true);
         }
 
@@ -118,10 +76,10 @@ declare_class!(
         #[method(menuWillOpen:)]
         unsafe fn _menuWillOpen(&self, menu: &NSMenu) {
             let MenuState { submenu, on_hover } = get_menu_state(&menu);
-            let id = &submenu.id(&self.state.state.borrow());
-            let data = &self.state.graph[id];
+            let id = &submenu.id(&self.ivars().state.borrow());
+            let data = &self.ivars().graph[id];
 
-            let mut state = self.state.state.borrow_mut();
+            let mut state = self.ivars().state.borrow_mut();
             state.update(on_hover);
 
             let items = menu.itemArray();
@@ -142,10 +100,10 @@ declare_class!(
         #[method(menuDidClose:)]
         fn _menuDidClose(&self, menu: &NSMenu) {
             let MenuState { submenu, .. } = get_menu_state(&menu);
-            let id = &submenu.id(&self.state.state.borrow());
-            let data = &self.state.graph[id];
+            let id = &submenu.id(&self.ivars().state.borrow());
+            let data = &self.ivars().graph[id];
 
-            self.state.state.borrow_mut().update(&data.on_leave);
+            self.ivars().state.borrow_mut().update(&data.on_leave);
         }
 
         #[method(menuNeedsUpdate:)]
@@ -155,8 +113,8 @@ declare_class!(
             }
             let mtm = MainThreadMarker::new().unwrap();
             let MenuState { submenu, .. } = get_menu_state(&menu);
-            let id = &submenu.id(&self.state.state.borrow());
-            let data = &self.state.graph[id];
+            let id = &submenu.id(&self.ivars().state.borrow());
+            let data = &self.ivars().graph[id];
 
             for entry in &data.entries {
                 let title = NSString::from_str(&entry.label);
@@ -197,15 +155,15 @@ declare_class!(
         unsafe fn click(&self, item: &NSMenuItem) {
             let menu = item.menu().unwrap();
             let MenuState { submenu, .. } = get_menu_state(&menu);
-            let id = &submenu.id(&self.state.state.borrow());
+            let id = &submenu.id(&self.ivars().state.borrow());
 
-            match &self.state.graph[id].entries[menu.indexOfItem(item) as usize].reaction {
+            match &self.ivars().graph[id].entries[menu.indexOfItem(item) as usize].reaction {
                 Reaction::SubMenu { .. } => {
                     unreachable!("found submenu where clickaction was expected")
                 }
                 Reaction::ClickAction { on_action, act } => {
                     // Update state before doing the action
-                    self.state.state.borrow_mut().update(&on_action);
+                    self.ivars().state.borrow_mut().update(&on_action);
 
                     // Update the main menu.
                     // TODO: Find a better way to do this.
@@ -240,11 +198,12 @@ declare_class!(
 impl Delegate {
     fn update_main_menu(&self) {
         eprintln!("update main menu");
-        let app = unsafe { NSApp.unwrap() };
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
 
         let menu = {
-            let state = self.state.state.borrow();
-            self.state
+            let state = self.ivars().state.borrow();
+            self.ivars()
                 .main_menus
                 .iter()
                 .find_map(|(cond, menu)| cond.evaluate(&state).then_some(menu))
@@ -254,7 +213,7 @@ impl Delegate {
         unsafe {
             menu.itemAtIndex(0)
                 .unwrap()
-                .setSubmenu(Some(&create_system_menu(app)))
+                .setSubmenu(Some(&create_system_menu(&app)))
         };
 
         unsafe { self.menuWillOpen(&menu) };
@@ -269,15 +228,43 @@ fn get_menu_state(menu: &NSMenu) -> &MenuState {
     let menu: *const CustomMenu = menu.cast();
     // SAFETY: Checked above that the menu is an instance of CustomMenu
     let menu: &CustomMenu = unsafe { &*menu };
-    &**menu.state
+    &menu.ivars()
 }
 
-extern_methods!(
-    unsafe impl Delegate {
-        #[method_id(new)]
-        fn new(mtm: MainThreadMarker) -> Id<Self>;
+impl Delegate {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        let data = Data::load();
+        let main_menus = data
+            .root
+            .menu
+            .entries
+            .into_iter()
+            .map(|entry| {
+                let state = match &entry.reaction {
+                    Reaction::SubMenu { submenu, on_hover } => MenuState {
+                        submenu: submenu.clone(),
+                        on_hover: on_hover.clone(),
+                    },
+                    _ => unreachable!(),
+                };
+                let menu = CustomMenu::new(mtm, state);
+                unsafe { menu.setAutoenablesItems(false) };
+
+                (entry.display, menu)
+            })
+            .collect();
+        let this = mtm.alloc().set_ivars(DelegateState {
+            main_menus,
+            state: RefCell::new(data.root.state),
+            graph: data.graph,
+        });
+        let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
+        for (_, menu) in &this.ivars().main_menus {
+            unsafe { menu.setDelegate(Some(ProtocolObject::from_ref(&*this))) };
+        }
+        this
     }
-);
+}
 
 pub struct MenuState {
     submenu: SubMenu,
@@ -285,31 +272,27 @@ pub struct MenuState {
 }
 
 declare_class!(
-    struct CustomMenu {
-        state: IvarDrop<Box<MenuState>, "_state">,
-    }
-
-    mod ivars_menu;
+    struct CustomMenu;
 
     unsafe impl ClassType for CustomMenu {
         type Super = NSMenu;
         type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "CustomMenu";
     }
+
+    impl DeclaredClass for CustomMenu {
+        type Ivars = MenuState;
+    }
 );
 
 impl CustomMenu {
-    fn new(mtm: MainThreadMarker, state: MenuState) -> Id<Self> {
-        let this: Allocated<Self> = mtm.alloc().unwrap();
-        let this: *mut Self = unsafe { std::mem::transmute(this) };
-        let this: Option<&mut Self> = unsafe { msg_send![super(this), init] };
-        let this = this.unwrap();
-        Ivar::write(&mut this.state, Box::new(state));
-        unsafe { Id::new(this).unwrap() }
+    fn new(mtm: MainThreadMarker, state: MenuState) -> Retained<Self> {
+        let this = mtm.alloc().set_ivars(state);
+        unsafe { msg_send_id![super(this), init] }
     }
 }
 
-fn create_system_menu(app: &NSApplication) -> Id<NSMenu> {
+fn create_system_menu(app: &NSApplication) -> Retained<NSMenu> {
     unsafe {
         let mtm = MainThreadMarker::new().unwrap();
 
@@ -321,7 +304,7 @@ fn create_system_menu(app: &NSApplication) -> Id<NSMenu> {
             Some(sel!(orderFrontStandardAboutPanel:)),
             ns_string!(""),
         );
-        menu.addItem(&NSMenuItem::separatorItem());
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
 
         let services = NSMenu::initWithTitle(mtm.alloc(), ns_string!("Services"));
         let services_item = NSMenuItem::initWithTitle_action_keyEquivalent(
@@ -333,7 +316,7 @@ fn create_system_menu(app: &NSApplication) -> Id<NSMenu> {
         services_item.setSubmenu(Some(&services));
         app.setServicesMenu(Some(&services));
         menu.addItem(&services_item);
-        menu.addItem(&NSMenuItem::separatorItem());
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
 
         menu.addItemWithTitle_action_keyEquivalent(
             &NSString::from_str(&format!("Hide {name}")),
@@ -346,15 +329,17 @@ fn create_system_menu(app: &NSApplication) -> Id<NSMenu> {
             Some(sel!(hideOtherApplications:)),
             ns_string!("h"),
         );
-        hide_others
-            .setKeyEquivalentModifierMask(NSEventModifierFlagCommand | NSEventModifierFlagOption);
+        hide_others.setKeyEquivalentModifierMask(
+            NSEventModifierFlags::NSEventModifierFlagCommand
+                | NSEventModifierFlags::NSEventModifierFlagOption,
+        );
         menu.addItem(&hide_others);
         menu.addItemWithTitle_action_keyEquivalent(
             ns_string!("Show All"),
             Some(sel!(unhideAllApplications:)),
             ns_string!(""),
         );
-        menu.addItem(&NSMenuItem::separatorItem());
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
 
         menu.addItemWithTitle_action_keyEquivalent(
             &NSString::from_str(&format!("Ouit {name}")),
@@ -368,8 +353,8 @@ fn create_system_menu(app: &NSApplication) -> Id<NSMenu> {
 
 fn main() {
     let mtm = MainThreadMarker::new().unwrap();
-    let app = unsafe { NSApplication::sharedApplication() };
-    unsafe { app.setActivationPolicy(NSApplicationActivationPolicyRegular) };
+    let app = NSApplication::sharedApplication(mtm);
+    app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
     let delegate = Delegate::new(mtm);
     unsafe { app.setDelegate(Some(ProtocolObject::from_ref(&*delegate))) };
 

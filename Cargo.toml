@@ -12,21 +12,22 @@ repository = "https://github.com/madsmtm/xkcd-1975"
 serde_json = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
-objc2 = "0.4.1"
-
-[dependencies.icrate]
-version = "0.0.4"
-features = [
-    "AppKit",
-    "AppKit_NSMenu",
-    "AppKit_NSMenuItem",
-    "AppKit_NSApplication",
-    "AppKit_NSWorkspace",
-    "Foundation",
-    "Foundation_NSString",
-    "Foundation_NSArray",
-    "Foundation_NSNotification",
-    "Foundation_NSThread",
-    "Foundation_NSURL",
-    "Foundation_NSProcessInfo",
-]
+objc2 = "0.5.2"
+objc2-foundation = { version = "0.2.2", features = [
+    "NSArray",
+    "NSNotification",
+    "NSProcessInfo",
+    "NSString",
+    "NSThread",
+    "NSURL",
+    "NSEnumerator",
+] }
+objc2-app-kit = { version = "0.2.2", features = [
+    "NSApplication",
+    "NSEvent",
+    "NSMenu",
+    "NSMenuItem",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSWorkspace",
+] }
