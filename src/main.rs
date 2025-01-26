@@ -5,7 +5,9 @@ use std::ptr::NonNull;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{
+    define_class, msg_send, sel, AllocAnyThread, ClassType, DeclaredClass, MainThreadOnly,
+};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSApplicationMain,
     NSEventModifierFlags, NSMenu, NSMenuDelegate, NSMenuItem, NSWorkspace,
@@ -24,23 +26,17 @@ pub struct DelegateState {
     graph: Graph,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "Delegate"]
+    #[ivars = DelegateState]
     struct Delegate;
-
-    unsafe impl ClassType for Delegate {
-        type Super = NSObject;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "Delegate";
-    }
-
-    impl DeclaredClass for Delegate {
-        type Ivars = DelegateState;
-    }
 
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl NSApplicationDelegate for Delegate {
-        #[method(applicationDidFinishLaunching:)]
+        #[unsafe(method(applicationDidFinishLaunching:))]
         unsafe fn applicationDidFinishLaunching(&self, _: &NSNotification) {
             let mtm = MainThreadMarker::from(self);
             let app = NSApplication::sharedApplication(mtm);
@@ -66,14 +62,14 @@ declare_class!(
 
         // Required to prevent a warning regarding saved application state
         // https://sector7.computest.nl/post/2022-08-process-injection-breaking-all-macos-security-layers-with-a-single-vulnerability/
-        #[method(applicationSupportsSecureRestorableState:)]
+        #[unsafe(method(applicationSupportsSecureRestorableState:))]
         fn applicationSupportsSecureRestorableState(&self, _: &NSApplication) -> bool {
             true
         }
     }
 
     unsafe impl NSMenuDelegate for Delegate {
-        #[method(menuWillOpen:)]
+        #[unsafe(method(menuWillOpen:))]
         unsafe fn _menuWillOpen(&self, menu: &NSMenu) {
             let MenuState { submenu, on_hover } = get_menu_state(&menu);
             let id = &submenu.id(&self.ivars().state.borrow());
@@ -97,7 +93,7 @@ declare_class!(
             }
         }
 
-        #[method(menuDidClose:)]
+        #[unsafe(method(menuDidClose:))]
         fn _menuDidClose(&self, menu: &NSMenu) {
             let MenuState { submenu, .. } = get_menu_state(&menu);
             let id = &submenu.id(&self.ivars().state.borrow());
@@ -106,7 +102,7 @@ declare_class!(
             self.ivars().state.borrow_mut().update(&data.on_leave);
         }
 
-        #[method(menuNeedsUpdate:)]
+        #[unsafe(method(menuNeedsUpdate:))]
         fn _menuNeedsUpdate(&self, menu: &NSMenu) {
             if unsafe { menu.numberOfItems() } > 0 {
                 return;
@@ -150,14 +146,17 @@ declare_class!(
         }
     }
 
-    unsafe impl Delegate {
-        #[method(click:)]
-        unsafe fn click(&self, item: &NSMenuItem) {
-            let menu = item.menu().unwrap();
+    /// Action methods.
+    impl Delegate {
+        #[unsafe(method(click:))]
+        fn click(&self, item: &NSMenuItem) {
+            let menu = unsafe { item.menu().unwrap() };
             let MenuState { submenu, .. } = get_menu_state(&menu);
             let id = &submenu.id(&self.ivars().state.borrow());
 
-            match &self.ivars().graph[id].entries[menu.indexOfItem(item) as usize].reaction {
+            match &self.ivars().graph[id].entries[unsafe { menu.indexOfItem(item) } as usize]
+                .reaction
+            {
                 Reaction::SubMenu { .. } => {
                     unreachable!("found submenu where clickaction was expected")
                 }
@@ -223,7 +222,7 @@ impl Delegate {
 }
 
 fn get_menu_state(menu: &NSMenu) -> &MenuState {
-    assert!(menu.is_kind_of::<CustomMenu>());
+    assert!(menu.isKindOfClass(CustomMenu::class()));
     let menu: *const NSMenu = menu;
     let menu: *const CustomMenu = menu.cast();
     // SAFETY: Checked above that the menu is an instance of CustomMenu
@@ -253,12 +252,12 @@ impl Delegate {
                 (entry.display, menu)
             })
             .collect();
-        let this = mtm.alloc().set_ivars(DelegateState {
+        let this = Self::alloc(mtm).set_ivars(DelegateState {
             main_menus,
             state: RefCell::new(data.root.state),
             graph: data.graph,
         });
-        let this: Retained<Self> = unsafe { msg_send_id![super(this), init] };
+        let this: Retained<Self> = unsafe { msg_send![super(this), init] };
         for (_, menu) in &this.ivars().main_menus {
             unsafe { menu.setDelegate(Some(ProtocolObject::from_ref(&*this))) };
         }
@@ -271,24 +270,17 @@ pub struct MenuState {
     on_hover: Action,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSMenu))]
+    #[name = "CustomMenu"]
+    #[ivars = MenuState]
     struct CustomMenu;
-
-    unsafe impl ClassType for CustomMenu {
-        type Super = NSMenu;
-        type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "CustomMenu";
-    }
-
-    impl DeclaredClass for CustomMenu {
-        type Ivars = MenuState;
-    }
 );
 
 impl CustomMenu {
     fn new(mtm: MainThreadMarker, state: MenuState) -> Retained<Self> {
-        let this = mtm.alloc().set_ivars(state);
-        unsafe { msg_send_id![super(this), init] }
+        let this = Self::alloc(mtm).set_ivars(state);
+        unsafe { msg_send![super(this), init] }
     }
 }
 
@@ -330,8 +322,7 @@ fn create_system_menu(app: &NSApplication) -> Retained<NSMenu> {
             ns_string!("h"),
         );
         hide_others.setKeyEquivalentModifierMask(
-            NSEventModifierFlags::NSEventModifierFlagCommand
-                | NSEventModifierFlags::NSEventModifierFlagOption,
+            NSEventModifierFlags::Command | NSEventModifierFlags::Option,
         );
         menu.addItem(&hide_others);
         menu.addItemWithTitle_action_keyEquivalent(
