@@ -1,16 +1,12 @@
 #![allow(non_snake_case)]
-#![allow(unused_unsafe)]
 use std::cell::RefCell;
-use std::ptr::NonNull;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{
-    define_class, msg_send, sel, AllocAnyThread, ClassType, DeclaredClass, MainThreadOnly,
-};
+use objc2::{define_class, msg_send, sel, AllocAnyThread, DeclaredClass, MainThreadOnly};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSApplicationMain,
-    NSEventModifierFlags, NSMenu, NSMenuDelegate, NSMenuItem, NSWorkspace,
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSEventModifierFlags,
+    NSMenu, NSMenuDelegate, NSMenuItem, NSWorkspace,
 };
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL,
@@ -37,19 +33,21 @@ define_class!(
 
     unsafe impl NSApplicationDelegate for Delegate {
         #[unsafe(method(applicationDidFinishLaunching:))]
-        unsafe fn applicationDidFinishLaunching(&self, _: &NSNotification) {
+        fn applicationDidFinishLaunching(&self, _: &NSNotification) {
             let mtm = MainThreadMarker::from(self);
             let app = NSApplication::sharedApplication(mtm);
 
             for (_, menu) in &self.ivars().main_menus {
                 self.menuNeedsUpdate(&menu);
 
-                let system_item = NSMenuItem::initWithTitle_action_keyEquivalent(
-                    mtm.alloc(),
-                    ns_string!(NAME),
-                    None,
-                    ns_string!(""),
-                );
+                let system_item = unsafe {
+                    NSMenuItem::initWithTitle_action_keyEquivalent(
+                        mtm.alloc(),
+                        ns_string!(NAME),
+                        None,
+                        ns_string!(""),
+                    )
+                };
                 menu.insertItem_atIndex(&system_item, 0);
             }
 
@@ -70,7 +68,7 @@ define_class!(
 
     unsafe impl NSMenuDelegate for Delegate {
         #[unsafe(method(menuWillOpen:))]
-        unsafe fn _menuWillOpen(&self, menu: &NSMenu) {
+        fn _menuWillOpen(&self, menu: &NSMenu) {
             let MenuState { submenu, on_hover } = get_menu_state(&menu);
             let id = &submenu.id(&self.ivars().state.borrow());
             let data = &self.ivars().graph[id];
@@ -104,7 +102,7 @@ define_class!(
 
         #[unsafe(method(menuNeedsUpdate:))]
         fn _menuNeedsUpdate(&self, menu: &NSMenu) {
-            if unsafe { menu.numberOfItems() } > 0 {
+            if menu.numberOfItems() > 0 {
                 return;
             }
             let mtm = MainThreadMarker::new().unwrap();
@@ -123,7 +121,7 @@ define_class!(
                     )
                 };
                 match &entry.reaction {
-                    Reaction::SubMenu { on_hover, submenu } => unsafe {
+                    Reaction::SubMenu { on_hover, submenu } => {
                         let menu = CustomMenu::new(
                             mtm,
                             MenuState {
@@ -134,14 +132,14 @@ define_class!(
                         menu.setAutoenablesItems(false);
                         menu.setDelegate(Some(ProtocolObject::from_ref(self)));
                         item.setSubmenu(Some(&menu));
-                    },
+                    }
                     // Ignore contents; handled in `click:` instead
-                    Reaction::ClickAction { .. } => unsafe {
-                        item.setTarget(Some(&self));
-                        item.setAction(Some(sel!(click:)));
-                    },
+                    Reaction::ClickAction { .. } => {
+                        unsafe { item.setTarget(Some(&self)) };
+                        unsafe { item.setAction(Some(sel!(click:))) };
+                    }
                 }
-                unsafe { menu.addItem(&item) };
+                menu.addItem(&item);
             }
         }
     }
@@ -150,13 +148,11 @@ define_class!(
     impl Delegate {
         #[unsafe(method(click:))]
         fn click(&self, item: &NSMenuItem) {
-            let menu = unsafe { item.menu().unwrap() };
+            let menu = unsafe { item.menu() }.unwrap();
             let MenuState { submenu, .. } = get_menu_state(&menu);
             let id = &submenu.id(&self.ivars().state.borrow());
 
-            match &self.ivars().graph[id].entries[unsafe { menu.indexOfItem(item) } as usize]
-                .reaction
-            {
+            match &self.ivars().graph[id].entries[menu.indexOfItem(item) as usize].reaction {
                 Reaction::SubMenu { .. } => {
                     unreachable!("found submenu where clickaction was expected")
                 }
@@ -173,7 +169,7 @@ define_class!(
                             ClickAction::ColapseMenu => {
                                 // Do nothing, as the menu will close automatically after an item was clicked
                             }
-                            ClickAction::Nav { url } | ClickAction::Download { url, .. } => unsafe {
+                            ClickAction::Nav { url } | ClickAction::Download { url, .. } => {
                                 let url = NSURL::initWithString(
                                     NSURL::alloc(),
                                     &NSString::from_str(&url),
@@ -182,7 +178,7 @@ define_class!(
                                 let workspace = NSWorkspace::sharedWorkspace();
                                 // TODO: Download properly
                                 workspace.openURL(&url);
-                            },
+                            }
                             ClickAction::JSCall { js_call } => {
                                 println!("Unimplemented action: {js_call:?}");
                             }
@@ -209,24 +205,18 @@ impl Delegate {
                 .expect("could not find a main menu")
         };
 
-        unsafe {
-            menu.itemAtIndex(0)
-                .unwrap()
-                .setSubmenu(Some(&create_system_menu(&app)))
-        };
+        menu.itemAtIndex(0)
+            .unwrap()
+            .setSubmenu(Some(&create_system_menu(&app)));
 
-        unsafe { self.menuWillOpen(&menu) };
+        self.menuWillOpen(&menu);
 
-        unsafe { app.setMainMenu(Some(&menu)) };
+        app.setMainMenu(Some(&menu));
     }
 }
 
 fn get_menu_state(menu: &NSMenu) -> &MenuState {
-    assert!(menu.isKindOfClass(CustomMenu::class()));
-    let menu: *const NSMenu = menu;
-    let menu: *const CustomMenu = menu.cast();
-    // SAFETY: Checked above that the menu is an instance of CustomMenu
-    let menu: &CustomMenu = unsafe { &*menu };
+    let menu = menu.downcast_ref::<CustomMenu>().unwrap();
     &menu.ivars()
 }
 
@@ -247,7 +237,7 @@ impl Delegate {
                     _ => unreachable!(),
                 };
                 let menu = CustomMenu::new(mtm, state);
-                unsafe { menu.setAutoenablesItems(false) };
+                menu.setAutoenablesItems(false);
 
                 (entry.display, menu)
             })
@@ -259,7 +249,7 @@ impl Delegate {
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
         for (_, menu) in &this.ivars().main_menus {
-            unsafe { menu.setDelegate(Some(ProtocolObject::from_ref(&*this))) };
+            menu.setDelegate(Some(ProtocolObject::from_ref(&*this)));
         }
         this
     }
@@ -285,61 +275,70 @@ impl CustomMenu {
 }
 
 fn create_system_menu(app: &NSApplication) -> Retained<NSMenu> {
+    let mtm = MainThreadMarker::new().unwrap();
+
+    let name = ns_string!(NAME); // NSProcessInfo::processInfo().processName();
+    let menu = NSMenu::initWithTitle(mtm.alloc(), &name);
+
     unsafe {
-        let mtm = MainThreadMarker::new().unwrap();
-
-        let name = ns_string!(NAME); // NSProcessInfo::processInfo().processName();
-        let menu = NSMenu::initWithTitle(mtm.alloc(), &name);
-
         menu.addItemWithTitle_action_keyEquivalent(
             &NSString::from_str(&format!("About {name}")),
             Some(sel!(orderFrontStandardAboutPanel:)),
             ns_string!(""),
-        );
-        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        )
+    };
+    menu.addItem(&NSMenuItem::separatorItem(mtm));
 
-        let services = NSMenu::initWithTitle(mtm.alloc(), ns_string!("Services"));
-        let services_item = NSMenuItem::initWithTitle_action_keyEquivalent(
+    let services = NSMenu::initWithTitle(mtm.alloc(), ns_string!("Services"));
+    let services_item = unsafe {
+        NSMenuItem::initWithTitle_action_keyEquivalent(
             mtm.alloc(),
             ns_string!("Services"),
             None,
             ns_string!(""),
-        );
-        services_item.setSubmenu(Some(&services));
-        app.setServicesMenu(Some(&services));
-        menu.addItem(&services_item);
-        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        )
+    };
+    services_item.setSubmenu(Some(&services));
+    app.setServicesMenu(Some(&services));
+    menu.addItem(&services_item);
+    menu.addItem(&NSMenuItem::separatorItem(mtm));
 
+    unsafe {
         menu.addItemWithTitle_action_keyEquivalent(
             &NSString::from_str(&format!("Hide {name}")),
             Some(sel!(hide:)),
             ns_string!("h"),
-        );
-        let hide_others = NSMenuItem::initWithTitle_action_keyEquivalent(
+        )
+    };
+    let hide_others = unsafe {
+        NSMenuItem::initWithTitle_action_keyEquivalent(
             mtm.alloc(),
             ns_string!("Hide Others"),
             Some(sel!(hideOtherApplications:)),
             ns_string!("h"),
-        );
-        hide_others.setKeyEquivalentModifierMask(
-            NSEventModifierFlags::Command | NSEventModifierFlags::Option,
-        );
-        menu.addItem(&hide_others);
+        )
+    };
+    hide_others
+        .setKeyEquivalentModifierMask(NSEventModifierFlags::Command | NSEventModifierFlags::Option);
+    menu.addItem(&hide_others);
+    unsafe {
         menu.addItemWithTitle_action_keyEquivalent(
             ns_string!("Show All"),
             Some(sel!(unhideAllApplications:)),
             ns_string!(""),
-        );
-        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        )
+    };
+    menu.addItem(&NSMenuItem::separatorItem(mtm));
 
+    unsafe {
         menu.addItemWithTitle_action_keyEquivalent(
             &NSString::from_str(&format!("Ouit {name}")),
             Some(sel!(terminate:)),
             ns_string!("q"),
-        );
+        )
+    };
 
-        menu
-    }
+    menu
 }
 
 fn main() {
@@ -347,7 +346,7 @@ fn main() {
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
     let delegate = Delegate::new(mtm);
-    unsafe { app.setDelegate(Some(ProtocolObject::from_ref(&*delegate))) };
+    app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
-    unsafe { NSApplicationMain(0, NonNull::new((&mut []).as_mut_ptr()).unwrap()) };
+    NSApplication::main(mtm);
 }

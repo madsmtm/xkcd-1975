@@ -12,8 +12,9 @@ repository = "https://github.com/madsmtm/xkcd-1975"
 serde_json = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
-objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = [
+objc2 = "0.6.3"
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+    "std",
     "NSArray",
     "NSNotification",
     "NSProcessInfo",
@@ -22,7 +23,8 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSURL",
     "NSEnumerator",
 ] }
-objc2-app-kit = { version = "0.3", default-features = false, features = [
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+    "std",
     "NSApplication",
     "NSEvent",
     "NSMenu",
